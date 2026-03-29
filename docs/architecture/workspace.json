@@ -1,0 +1,402 @@
+{
+  "configuration" : { },
+  "description" : "An AI-driven Quantified Self & Behavior Analysis Ecosystem.",
+  "documentation" : {
+    "sections" : [ {
+      "content" : "# 引言与目标 (Introduction and Goals)\n\nAstrolabe 是一款 AI 驱动的“量化自我”生态系统。本项目旨在通过高频采集用户的时间切片数据，并结合大语言模型，为用户提供深度的行为模式分析与每日“神谕”指导。\n\n## 核心需求\n\n* **精准采集:** 鸿蒙端需保证在后台稳定保活，准确无误地记录时间流向流与健康数据。\n* **低负载轻量运行:** 服务端采用单体设计，在资源有限的单机上平稳处理个人的各项打点与复盘同步记录。\n* **人机共创洞察:** 将客观的量化打点与用户手动的主观每日复盘相结合，生成更高质量、个性化的 AI 个人行为报告。",
+      "filename" : "01-introduction-and-goals.md",
+      "format" : "Markdown",
+      "order" : 1,
+      "title" : ""
+    }, {
+      "content" : "# 架构约束 (Architecture Constraints)\n\n* **客户端限制:** Echo 端必须使用 HarmonyOS Native (ArkTS) 开发，需遵循鸿蒙的后台任务管理规范。\n* **技术栈约定:** 后端采用 Go 语言（搭配 Gin 框架）以提供稳定且轻量的 API 服务。\n* **基础设施约束:** 考虑到成本控制，主要应用和数据库均部署在宿主机（个人电脑 / 软路由）上，并必须完全兼容通过第三方“内网穿透”隧道（如 FRP / Cloudflare Tunnel / Ngrok 等）以非固定公网 IP 的方式穿透暴露服务。这也意味着应用不能对依赖公网绝对高可用和超大带宽作出假设。",
+      "filename" : "02-architecture-constraints.md",
+      "format" : "Markdown",
+      "order" : 2,
+      "title" : ""
+    }, {
+      "content" : "# 系统上下文 (System Scope and Context)\n\n本节展示 Astrolabe 与外部世界的交互。在宏观层面上，我们将整个生态视为一个系统，重点关注用户与外部依赖。\n\n![](embed:SystemContext)",
+      "filename" : "03-system-scope-and-context.md",
+      "format" : "Markdown",
+      "order" : 3,
+      "title" : ""
+    }, {
+      "content" : "# 解决方案策略 (Solution Strategy)\n\n本项目的**核心架构目标追求“极简、轻量、高可维护性”**。鉴于当前 Astrolabe 系统是专门面向个人的“量化自我”场景应用，没有大型海量并发需求，因而本系统采取了精简的单体架构和扎实的基础交互策略：\n\n* **采用单一核心处理中枢:** 核心逻辑统一使用成熟精炼的全功能 Go (Gin) 作为唯一后端主程序。由单一节点完成所有的状态收集计算以及对第三方的连接（例如长耗时的外部 AI 大语言模型云端 API 交互），消除了系统在服务切割上带来的各种过度开销，保障极简的维护体验。\n* **直接物理同步落盘:** 客户端所有数据打点都直接与底层稳定的关系数据库结合对接，通过后端直接产生 `INSERT` 即时落地，保障每次时钟计时的单项原子化记录稳定可靠，实现在单台薄弱机能服务器上也轻巧飞快地完成业务链闭环。",
+      "filename" : "04-solution-strategy.md",
+      "format" : "Markdown",
+      "order" : 4,
+      "title" : ""
+    }, {
+      "content" : "# 构建块视图 (Building Block View)\n\n本章节将使用 C4 模型，从不同的宏观与微观层级，详细阐述 Astrolabe 生态系统的架构设计。\n\n## Level 1: 系统上下文 (System Context)\n\n系统上下文视图展示了 Astrolabe 系统作为一个整体，是如何与真实世界的用户以及外部依赖系统（如大模型 API）进行交互的。\n\n**核心关注点：** 系统的边界在哪里？为谁提供服务？依赖谁？\n\n![](embed:SystemContext)\n\n---\n\n## Level 2: 容器架构 (Container View)\n\n将 Astrolabe 系统这个“黑盒”打开，我们可以看到其内部的系统边界。在这个层级，我们将鸿蒙手表作为独立的硬件采集触点，与手机 App 协同工作。\n\n**核心技术栈：** HarmonyOS (ArkTS), Vue 3, Go (Gin), MySQL。\n\n![](embed:Container)\n\n### 容器职责说明：\n* **Echo Watch (穿戴设备):** 负责无感采集用户的心率、步数与睡眠等隐性健康指标，并通过软总线同步给手机。\n* **Echo App (移动端):** 作为核心互动入口，提供番茄钟计时、任务标记功能，并汇总所有行为切片数据向网关高频上报。\n* **Main Backend (单体后端):** 集中处理业务逻辑，接收数据，同步调用远端 LLM，生成专属的生活节奏指导报告。",
+      "filename" : "05-building-block-view.md",
+      "format" : "Markdown",
+      "order" : 5,
+      "title" : ""
+    }, {
+      "content" : "# 运行时视图 (Runtime View)\n\n本节描绘了 Astrolabe 系统中最核心的两个动态运行时场景：高频数据上报与 AI 报告生成。\n\n## 场景一：高频时间切片上报链路\n\n移动终端产生的心跳记录、行为打点或体征数据，由应用统一提交并同步写入数据库，确保数据原子性与一致性。\n\n```mermaid\nsequenceDiagram\n    participant App as Echo App (鸿蒙)\n    participant Gateway as Main Backend (Go)\n    participant DB as MySQL Database\n\n    App->>Gateway: [HTTP POST] 上报时间切片与状态\n    activate Gateway\n    Gateway->>Gateway: JWT 鉴权与数据校验\n    Gateway->>DB: [TCP] 执行同步 INSERT 落盘持久化\n    Gateway-->>App: 200 OK\n    deactivate Gateway\n```\n\n## 场景二：每日用户复盘与 AI 神谕生成\n\n在每日结束时，用户在客户端手动撰写夜间复盘，后端会提取当日的所有量化打点数据，结合用户的复盘文本，构建带上下文的 Prompt 发送给大模型，生成专属的深度分析报告。\n\n```mermaid\nsequenceDiagram\n    participant User as 用户\n    participant App as 客户端 (Echo App / Web)\n    participant Gateway as Main Backend (Go)\n    participant DB as MySQL Database\n    participant LLM as 外部大模型 API\n\n    User->>App: 撰写每日总结与复盘提交\n    App->>Gateway: [HTTP POST] 提交当日复盘文字\n    activate Gateway\n    Gateway->>DB: [TCP] 获取用户当日所有的行为切片与健康数据\n    DB-->>Gateway: 返回结构化时序数据\n    Gateway->>Gateway: 组装 Prompt (时序日志 + 用户复盘)\n    Gateway->>LLM: [HTTPS] 调用生成回复流\n    LLM-->>Gateway: 返回神谕解析 (基于打点与主观复盘)\n    Gateway->>DB: 存储 AI 分析报告\n    Gateway-->>App: 200 OK 报告并展示分析结果\n    deactivate Gateway\n```",
+      "filename" : "06-runtime-view.md",
+      "format" : "Markdown",
+      "order" : 6,
+      "title" : ""
+    }, {
+      "content" : "# 部署视图 (Deployment View)\n\nAstrolabe 的服务端采用容器化部署（Docker/Docker Compose），以保证开发、测试与生产环境的高度一致性。\n\n## 物理节点拓扑\n\n```mermaid\nflowchart TB\n    subgraph 用户终端\n        App[鸿蒙手机/手表 Echo]\n        Web[浏览器 Dashboard]\n    end\n\n    subgraph 云服务器 (Linux / Docker)\n        Nginx[Nginx 反向代理 / 443]\n        \n        subgraph 业务网络 (echo-net)\n            GoBackend[Main Backend:8080]\n        end\n        \n        subgraph 数据网络 (db-net)\n            MySQL[(MySQL:3306)]\n        end\n    end\n    \n    LLM((外部大模型 API))\n\n    App -- HTTPS --> Nginx\n    Web -- HTTPS --> Nginx\n    Nginx -- 路由 /api --> GoBackend\n    \n    GoBackend -- TCP --> MySQL\n    GoBackend -- HTTPS --> LLM",
+      "filename" : "07-deployment-view.md",
+      "format" : "Markdown",
+      "order" : 7,
+      "title" : ""
+    }, {
+      "content" : "# 交叉概念 (Cross-cutting Concepts)\n\n本节涵盖了跨越多个组件的系统级概念和通用规则。\n\n## 统一鉴权 (Authentication)\n采用无状态的 **JWT (JSON Web Token)** 机制。\n* Go 后端负责签发和校验 Token。\n* 鸿蒙端与 Vue 前端在请求 Header 中携带 `Authorization: Bearer <token>`。\n* 所有的 API 交互只有在成功完成 JWT 校验之后才会放行对底层数据的操作或外部大语言模型接口的调用。\n\n## API 设计规范\n系统交互统一采用 **RESTful API** 架构风格：\n* 请求响应格式统一为 `application/json`。\n* 统一的数据返回包装：`{ \"code\": 0, \"msg\": \"success\", \"data\": {...} }`。",
+      "filename" : "08-cross-cutting-concepts.md",
+      "format" : "Markdown",
+      "order" : 8,
+      "title" : ""
+    }, {
+      "content" : "# 架构决策记录 (Architecture Decisions)\n\n## [ADR-001] 采用 Go 语言构建基础级单体后端 (Monolithic Architecture)\n* **背景:** Astrolabe 系统主要是针对个人的真实时间量化记录，作为单用户工具，其预期 QPS 极低，完全没有任何高并发分布式协同或海量访问负载处理的要求。\n* **决策:** 统一采用 Go 语言（基于 Gin 框架）构建单一整体后端服务，将数据接收处理以及调用外部 LLM API 等所有核心逻辑集中在一个应用实例中闭环完成。\n* **后果:** 降低了系统复杂性与部署成本，所有的 API 和数据都在一个应用上下文中流通，极大地方便了后期的维护与服务器部署操作。\n\n## [ADR-002] 客户端打点直接同步落入关系型数据库\n* **背景:** 个人使用场景下单次请求体量较小且频次相对规律稳定，不需要通过额外的缓冲层或队列缓存手段来对抗瞬间的大流量写入冲击。\n* **决策:** 移动客户端、手表端产生的数据行为与体征数据均由 Go 后端单体同步通过 SQL `INSERT` 执行落盘直接写入稳定的关系型数据库（如 SQLite / MySQL）。\n* **后果:** 保障了基础架构组件开销到达最小化，并实现了单次记录入库的强原子性与可靠性，彻底杜绝了因内存缓冲问题导致的秒级丢失风险。",
+      "filename" : "09-architecture-decisions.md",
+      "format" : "Markdown",
+      "order" : 9,
+      "title" : ""
+    }, {
+      "content" : "# 质量需求 (Quality Requirements)\n\n## 可靠性与可用性 (Reliability)\n* **弱网容灾与断点续传:** 鸿蒙端在进入地铁无网环境、或者**宿舍后端物理机因断电、内网穿透隧道波动短时失联**时，时间记录与心跳数据必须暂存在设备本地的 SQLite 或首选项中，待网络或服务器恢复后，依据本地时间戳执行带有顺序的批量补偿上报。\n* **服务容错:** 当外部 LLM API（如 OpenAI/通义千问）宕机时，AI 功能模块需能优雅降级，向用户返回缓存的提示或基于基本规则的标准建议，而不应导致整个后端的崩溃。\n\n## 性能 (Performance)\n* **API 延迟:** Go 主后端对于常规的数据上报与读取接口，不包含穿透隧道网络延迟的情况下 P95 响应时间必须小于 100ms。\n* **批处理效率:** 每日的 AI 分析任务必须能在终端触发时平滑运行，并确保在几分钟内完成该日的个人报告生成与落盘。",
+      "filename" : "10-quality-requirements.md",
+      "format" : "Markdown",
+      "order" : 10,
+      "title" : ""
+    }, {
+      "content" : "# 风险与技术债务 (Risks and Technical Debt)\n\n## 业务与技术风险\n* **宿舍物理机断电与断网:** 服务端部署于宿舍物理机之上，面临宿舍夜间断电、校园网故障或内网穿透节点波动的影响，这会导致客户端上报失败或服务失联。\n  * *缓解措施:* 在移动端（如鸿蒙 App）增加强大的**离线缓存与补偿机制**（如本地 SQLite 缓存储数据），在网络和宿主机恢复后执行断点续传；考虑为物理机配置软路由自启动及定时开机策略。\n* **内网穿透节点的带宽瓶颈:** 外部 NAT 穿透服务（无论是自行搭建的 FRP 还是第三方公网隧道）的公网带宽通常较小。\n  * *缓解措施:* 保持客户端与服务端的数据交互以纯文本/JSON 的微量请求为主，避免不必要的大文件传输。\n* **鸿蒙后台保活限制:** HarmonyOS 对非音乐/导航类应用的后台驻留有极其严格的管控。如果番茄钟在后台被系统强杀，将导致时间切片记录中断。\n  * *缓解措施:* 申请特权接口，或采用推送唤醒/卡片刷新等机制变相保活；深度结合手表端运动传感器作为辅助判断。\n* **大模型幻觉 (Hallucination):** AI 生成的“神谕”可能会出现逻辑断裂、甚至给出有害的生活建议。\n  * *缓解措施:* 在 Go 后端调用大模型时引入强有力的 Prompt 工程约束，要求大语言模型遵循严格的模板进行输出，并增加必要的容错和重试机制。\n\n## 技术债务\n* 系统作为单体服务，目前严重依赖单一关系型数据库节点。若数据量随时间不断增长，可能需要通过建立历史数据归档机制或引入本地轻便的数据检索方案来缓解单点存储压力。",
+      "filename" : "11-risks-and-technical-debt.md",
+      "format" : "Markdown",
+      "order" : 11,
+      "title" : ""
+    }, {
+      "content" : "# 词汇表 (Glossary)\n\n| 术语 | 定义 |\n| :--- | :--- |\n| **Echo** | Astrolabe 的数据采集端 (包含 HarmonyOS App 与穿戴设备) |\n| **时间切片** | 用户在单一任务或状态下度过的连续时间段 |\n| **主观复盘** | 用户在每日结束时围绕当天的生活状态、感受等记录的纯文本总结 |\n| **神谕报告** | 每日由大模型根据“客观打点数据”结合“用户主观复盘”综合生成的深度评估与建议 |",
+      "filename" : "12-glossary.md",
+      "format" : "Markdown",
+      "order" : 12,
+      "title" : ""
+    } ]
+  },
+  "id" : 1,
+  "lastModifiedDate" : "2026-03-29T03:42:56Z",
+  "model" : {
+    "people" : [ {
+      "description" : "渴望量化自我、记录时间切片并获取生活节奏洞察的用户。",
+      "id" : "1",
+      "name" : "Astrolabe User",
+      "properties" : {
+        "structurizr.dsl.identifier" : "user"
+      },
+      "relationships" : [ {
+        "description" : "使用手机记录任务、时间与撰写每日复盘",
+        "destinationId" : "5",
+        "id" : "10",
+        "sourceId" : "1",
+        "tags" : "Relationship"
+      }, {
+        "description" : "使用手机记录任务、时间与撰写每日复盘",
+        "destinationId" : "4",
+        "id" : "11",
+        "linkedRelationshipId" : "10",
+        "sourceId" : "1"
+      }, {
+        "description" : "佩戴手表自动同步健康数据",
+        "destinationId" : "6",
+        "id" : "12",
+        "sourceId" : "1",
+        "tags" : "Relationship"
+      }, {
+        "description" : "查看数据大屏，补充复盘与查看分析报告",
+        "destinationId" : "7",
+        "id" : "13",
+        "sourceId" : "1",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Person"
+    } ],
+    "softwareSystems" : [ {
+      "description" : "外部大语言模型 API，用于生成神谕报告。",
+      "documentation" : { },
+      "id" : "2",
+      "name" : "Cloud LLM Provider",
+      "properties" : {
+        "structurizr.dsl.identifier" : "llmApi"
+      },
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "内网穿透公网节点（FRP 等），负责将公网流量隧道转发至物理宿舍主机。",
+      "documentation" : { },
+      "id" : "3",
+      "name" : "NAT Traversal Proxy",
+      "properties" : {
+        "structurizr.dsl.identifier" : "natServer"
+      },
+      "relationships" : [ {
+        "description" : "TCP 隧道透明转发 (反向代理/流量打通)",
+        "destinationId" : "8",
+        "id" : "18",
+        "sourceId" : "3",
+        "tags" : "Relationship"
+      }, {
+        "description" : "TCP 隧道透明转发 (反向代理/流量打通)",
+        "destinationId" : "4",
+        "id" : "19",
+        "linkedRelationshipId" : "18",
+        "sourceId" : "3"
+      } ],
+      "tags" : "Element,Software System,External"
+    }, {
+      "containers" : [ {
+        "description" : "数据入口总汇：负责番茄钟、任务标记，并汇总手表端健康数据统一上报。",
+        "documentation" : { },
+        "id" : "5",
+        "name" : "Echo (Mobile Client)",
+        "properties" : {
+          "structurizr.dsl.identifier" : "echoApp"
+        },
+        "relationships" : [ {
+          "description" : "上报行为日志与复盘文本 (外部域名 HTTPS)",
+          "destinationId" : "3",
+          "id" : "15",
+          "sourceId" : "5",
+          "tags" : "Relationship"
+        } ],
+        "tags" : "Element,Container,Mobile App",
+        "technology" : "HarmonyOS / ArkTS"
+      }, {
+        "description" : "无感采集心率、睡眠、步数等量化健康数据。",
+        "documentation" : { },
+        "id" : "6",
+        "name" : "Echo Watch Client (Wearable)",
+        "properties" : {
+          "structurizr.dsl.identifier" : "echoWatch"
+        },
+        "relationships" : [ {
+          "description" : "本地同步心率、睡眠数据 (分布式软总线/Health Kit)",
+          "destinationId" : "5",
+          "id" : "14",
+          "sourceId" : "6",
+          "tags" : "Relationship"
+        } ],
+        "tags" : "Element,Container,Wearable App",
+        "technology" : "HarmonyOS / Wearable"
+      }, {
+        "description" : "展示时序行为流、睡眠/健身量化图表及 AI 神谕报告。",
+        "documentation" : { },
+        "id" : "7",
+        "name" : "Dashboard (Frontend)",
+        "properties" : {
+          "structurizr.dsl.identifier" : "dashboard"
+        },
+        "relationships" : [ {
+          "description" : "提交复盘、拉取数据与视图 (外部域名 HTTPS)",
+          "destinationId" : "3",
+          "id" : "17",
+          "sourceId" : "7",
+          "tags" : "Relationship"
+        } ],
+        "tags" : "Element,Container,Web Browser",
+        "technology" : "Vue 3 / TypeScript"
+      }, {
+        "description" : "部署在内网主机，通过代理接收穿透数据流，处理业务与 AI 请求。",
+        "documentation" : { },
+        "id" : "8",
+        "name" : "Main Backend (单体后端 - 局域网物理机)",
+        "properties" : {
+          "structurizr.dsl.identifier" : "mainBackend"
+        },
+        "relationships" : [ {
+          "description" : "本地局域网直接落盘与持久化读取 (TCP/SQL)",
+          "destinationId" : "9",
+          "id" : "20",
+          "sourceId" : "8",
+          "tags" : "Relationship"
+        }, {
+          "description" : "发送 Prompt (混合时序客观数据与用户主观复盘) 并接收分析结果 (JSON/HTTPS)",
+          "destinationId" : "2",
+          "id" : "21",
+          "sourceId" : "8",
+          "tags" : "Relationship"
+        } ],
+        "tags" : "Element,Container,Backend",
+        "technology" : "Go / Gin"
+      }, {
+        "description" : "部署在本地主机的持久化关联网络存储。",
+        "documentation" : { },
+        "id" : "9",
+        "name" : "Relational Database",
+        "properties" : {
+          "structurizr.dsl.identifier" : "mysqlDb"
+        },
+        "tags" : "Element,Container,Database",
+        "technology" : "MySQL"
+      } ],
+      "description" : "时间记录与 AI 行为分析系统",
+      "documentation" : { },
+      "id" : "4",
+      "name" : "Astrolabe Ecosystem",
+      "properties" : {
+        "structurizr.dsl.identifier" : "astrolabe"
+      },
+      "relationships" : [ {
+        "description" : "上报行为日志与复盘文本 (外部域名 HTTPS)",
+        "destinationId" : "3",
+        "id" : "16",
+        "linkedRelationshipId" : "15",
+        "sourceId" : "4"
+      }, {
+        "description" : "发送 Prompt (混合时序客观数据与用户主观复盘) 并接收分析结果 (JSON/HTTPS)",
+        "destinationId" : "2",
+        "id" : "22",
+        "linkedRelationshipId" : "21",
+        "sourceId" : "4"
+      } ],
+      "tags" : "Element,Software System"
+    } ]
+  },
+  "name" : "Astrolabe",
+  "properties" : {
+    "structurizr.inspection.error" : "16",
+    "structurizr.inspection.info" : "0",
+    "structurizr.inspection.ignore" : "0",
+    "structurizr.inspection.warning" : "0"
+  },
+  "views" : {
+    "configuration" : {
+      "styles" : {
+        "elements" : [ {
+          "background" : "#438dd5",
+          "color" : "#ffffff",
+          "tag" : "Backend"
+        }, {
+          "shape" : "Cylinder",
+          "tag" : "Database"
+        }, {
+          "background" : "#999999",
+          "color" : "#ffffff",
+          "tag" : "External"
+        }, {
+          "shape" : "MobileDevicePortrait",
+          "tag" : "Mobile App"
+        }, {
+          "background" : "#438dd5",
+          "color" : "#ffffff",
+          "shape" : "MobileDevicePortrait",
+          "tag" : "Wearable App"
+        }, {
+          "shape" : "WebBrowser",
+          "tag" : "Web Browser"
+        } ]
+      },
+      "terminology" : { },
+      "themes" : [ "https://static.structurizr.com/themes/default/theme.json" ]
+    },
+    "containerViews" : [ {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "LeftRight",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
+      "description" : "Astrolabe 的容器架构图 (Level 2)",
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "3",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "5",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "6",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "7",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "9",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalSoftwareSystemBoundariesVisible" : false,
+      "key" : "Container",
+      "name" : "Container View: Astrolabe Ecosystem",
+      "order" : 2,
+      "relationships" : [ {
+        "id" : "10"
+      }, {
+        "id" : "12"
+      }, {
+        "id" : "13"
+      }, {
+        "id" : "14"
+      }, {
+        "id" : "15"
+      }, {
+        "id" : "17"
+      }, {
+        "id" : "18"
+      }, {
+        "id" : "20"
+      }, {
+        "id" : "21"
+      } ],
+      "softwareSystemId" : "4"
+    } ],
+    "systemContextViews" : [ {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "LeftRight",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
+      "description" : "Astrolabe 的系统上下文图 (Level 1)",
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "3",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "4",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "enterpriseBoundaryVisible" : true,
+      "key" : "SystemContext",
+      "name" : "System Context View: Astrolabe Ecosystem",
+      "order" : 1,
+      "relationships" : [ {
+        "id" : "11"
+      }, {
+        "id" : "16"
+      }, {
+        "id" : "19"
+      }, {
+        "id" : "22"
+      } ],
+      "softwareSystemId" : "4"
+    } ]
+  }
+}
