@@ -97,7 +97,3 @@ workspace "Astrolabe" "An AI-driven Quantified Self & Behavior Analysis Ecosyste
         }
     }
 }
-            }
-        }
-    }
-}
